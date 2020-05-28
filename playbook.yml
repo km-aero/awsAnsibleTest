@@ -1,15 +1,14 @@
 - hosts: localhost
+  connection: localhost
   gather_facts: False
 
   tasks:
-
     - name: create an instance
       ec2:
          key_name: my_key
          instance_type: t2.micro
          image: ami-0eb89db7593b5d434
          region: eu-west-2
-         group_id: sg-05c0c7eecac60228a
          wait: true
          exact_count: 2
          count_tag:
@@ -19,15 +18,23 @@
       register: ec2
 
     - name: Add all instance public IPs to host group
-      add_host: hostname={{ item.public_ip }} groups=ec2hosts
+      add_host:
+        name: "{{ item.public_ip }}"
+        groups: ec2hosts
+      loop: "{{ ec2.instances }}"
+
+    - name: Wait for SSH to come up
+      wait_for:
+        host: "{{ item.public_ip }}"
+        port: 22
+        state: started
       loop: "{{ ec2.instances }}"
 
 - hosts: ec2hosts
   remote_user: ubuntu
-  gather_facts: true
-  # become means which user you become after (yes = sudo)
+  gather_facts: false
   become: yes
-  # provisioning tasks
+
   tasks:
     - name: update sources and install nginx
       apt:
